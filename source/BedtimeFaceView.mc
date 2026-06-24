@@ -12,23 +12,19 @@ import Toybox.WatchUi;
 
 class BedtimeFaceView extends WatchUi.WatchFace {
 
-    // Display dimensions — Forerunner 955: 360×360 AMOLED circular display.
-    // These constants avoid magic numbers throughout the drawing code.
-    private const DISPLAY_W = 360;
-    private const DISPLAY_H = 360;
-    private const CENTER_X  = 180;
-    private const CENTER_Y  = 180;
-    private const RADIUS    = 180; // outer edge of the circular display
+    // Geometry derived from dc at render time — avoids hardcoded pixel assumptions.
+    private var mCx     as Number = 0;
+    private var mCy     as Number = 0;
+    private var mRadius as Number = 0;  // half the shorter screen dimension
 
-    // Sector ring: filled arc from SECTOR_INNER to SECTOR_OUTER radius.
-    // Leaving a gap at the center keeps the hands visually dominant.
-    private const SECTOR_INNER = 60;   // px from center
-    private const SECTOR_OUTER = 160;  // px from center; leaves ~20px for tick ring
+    // Sector ring radii as fractions of mRadius, set in onUpdate.
+    private var mSectorInner as Number = 0;
+    private var mSectorOuter as Number = 0;
 
-    // Hand lengths (from center)
-    private const HOUR_HAND_LEN   = 90;
-    private const MINUTE_HAND_LEN = 130;
-    private const HAND_WIDTH       = 6;  // stroke width in pixels
+    // Hand lengths and width, set in onUpdate.
+    private var mHourLen    as Number = 0;
+    private var mMinuteLen  as Number = 0;
+    private var mHandWidth  as Number = 6;
 
     // Day and month abbreviations (English; spec allows locale strings if available,
     // but Connect IQ Gregorian API returns integer values, so we map manually).
@@ -81,12 +77,21 @@ class BedtimeFaceView extends WatchUi.WatchFace {
     function onUpdate(dc as Graphics.Dc) as Void {
         loadSettings();
 
+        // Derive all geometry from actual DC dimensions each frame.
+        mCx     = dc.getWidth()  / 2;
+        mCy     = dc.getHeight() / 2;
+        mRadius = mCx < mCy ? mCx : mCy;
+        mSectorInner = (mRadius * 33) / 100;  // ~33% of radius
+        mSectorOuter = (mRadius * 88) / 100;  // ~88% of radius, leaves gap for ticks
+        mHourLen     = (mRadius * 72) / 100;  // same reach as minute hand
+        mMinuteLen   = (mRadius * 72) / 100;
+
         var clockTime = System.getClockTime();
         var now       = Gregorian.info(Time.now(), Time.FORMAT_SHORT);
         var sysStats  = System.getSystemStats();
 
-        var hour   = clockTime.hour;    // 0–23
-        var minute = clockTime.min;     // 0–59
+        var hour     = clockTime.hour;
+        var minute   = clockTime.min;
         var totalMin = hour * 60 + minute; // minutes since midnight, 0–1439
 
         // 1. Clear background
@@ -102,14 +107,14 @@ class BedtimeFaceView extends WatchUi.WatchFace {
         // 4. Draw analog hands (on top of sectors)
         drawHands(dc, hour, minute);
 
-        // 5. Draw digital time (small, lower-right area)
-        drawDigitalTime(dc, clockTime);
-
-        // 6. Draw date (bottom of dial)
+        // 5. Draw date — small, at 3 o'clock position, out of hands' sweep
         drawDate(dc, now);
 
-        // 7. Draw battery percentage (top of dial)
+        // 6. Draw battery as a bezel arc (top of dial)
         drawBattery(dc, sysStats.battery);
+
+        // 7. Digital time — small, near 12 o'clock, below the battery arc
+        drawDigitalTime(dc, clockTime);
     }
 
     // -------------------------------------------------------------------------
@@ -197,8 +202,8 @@ class BedtimeFaceView extends WatchUi.WatchFace {
             [mPmRedStart,    mPmRedEnd,       Graphics.COLOR_RED],
         ] as Array<Array<Number>>;
 
-        // Draw dead-zone background first (full ring in dark gray)
-        drawArcSegment(dc, 0.0f, 360.0f, Graphics.COLOR_DK_GRAY);
+        // Dead zone: near-black so it recedes behind colored sectors
+        drawArcSegment(dc, 0.0f, 360.0f, 0x181818);
 
         // Overlay colored segments on top
         for (var i = 0; i < segments.size(); i++) {
@@ -216,31 +221,28 @@ class BedtimeFaceView extends WatchUi.WatchFace {
     }
 
     // Draws a filled arc segment in the sector ring.
-    // startAngle and endAngle are clockwise degrees from 12 o'clock (0 = top).
-    // Graphics.drawArc uses counter-clockwise convention with 0° at 3 o'clock,
-    // so we must convert.
+    // startAngleCW and endAngleCW are clockwise degrees from 12 o'clock (0=top).
+    // Garmin drawArc(x, y, w, h, attr, degStart, degEnd):
+    //   - x,y is the TOP-LEFT of the bounding box, not the center
+    //   - 0° = 3 o'clock, angles increase counter-clockwise
+    //   - ARC_CLOCKWISE draws from degStart DOWN to degEnd (clockwise on screen)
     private function drawArcSegment(dc as Graphics.Dc, startAngleCW as Float, endAngleCW as Float, color as Number) as Void {
         if (endAngleCW <= startAngleCW) { return; }
 
-        // Convert: CW from 12 o'clock → CCW from 3 o'clock
-        // CW from top: 0°=top, 90°=right, 180°=bottom, 270°=left
-        // DC arc convention: 0°=right(3), 90°=top(12), CCW positive
-        // Mapping: dcAngle = 90 - cwAngle
-        var dcStart = (90.0f - startAngleCW + 360.0f) % 360.0f; // higher value (arc start in CCW)
-        var dcEnd   = (90.0f - endAngleCW   + 360.0f) % 360.0f; // lower value
+        // Convert CW-from-12 → Garmin DC convention (CCW-from-3):
+        //   garmin = 90 - cwAngle  (and wrap into 0–359)
+        // Because we go CW on screen, use ARC_CLOCKWISE with degStart > degEnd.
+        var dcStart = ((90.0f - startAngleCW + 360.0f).toNumber() % 360);
+        var dcEnd   = ((90.0f - endAngleCW   + 360.0f).toNumber() % 360);
 
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
 
-        // Draw concentric filled rings to produce a thick arc.
-        // drawArc draws only the outline; to fill the sector ring we draw many
-        // concentric arcs from SECTOR_INNER to SECTOR_OUTER radius.
-        // Step of 1px ensures full fill with no gaps on AMOLED.
-        var r = SECTOR_INNER;
-        while (r <= SECTOR_OUTER) {
-            // Graphics.Dc.drawArc(x, y, radius, attr, degStart, degEnd)
-            // attr: Graphics.ARC_CLOCKWISE or ARC_COUNTER_CLOCKWISE — we use CCW
-            // because our dcStart > dcEnd for normal CW sectors.
-            dc.drawArc(CENTER_X, CENTER_Y, r, Graphics.ARC_COUNTER_CLOCKWISE, dcStart.toNumber(), dcEnd.toNumber());
+        // Fill the ring by drawing concentric arcs from SECTOR_INNER to SECTOR_OUTER.
+        // drawArc(x, y, width, height, attr, degStart, degEnd)
+        // x,y = top-left of bounding box = CENTER - radius
+        var r = mSectorInner;
+        while (r <= mSectorOuter) {
+            dc.drawArc(mCx, mCy, r, Graphics.ARC_CLOCKWISE, dcStart, dcEnd);
             r++;
         }
     }
@@ -253,19 +255,19 @@ class BedtimeFaceView extends WatchUi.WatchFace {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
 
         for (var i = 0; i < 60; i++) {
-            var angleDeg  = i * 6.0f;                    // 60 ticks × 6° each
+            var angleDeg  = i * 6.0f;
             var angleRad  = angleDeg * Math.PI / 180.0f;
             var sinA      = Math.sin(angleRad);
             var cosA      = Math.cos(angleRad);
 
             var isHourTick = (i % 5 == 0);
-            var outerR     = RADIUS - 4;
-            var innerR     = isHourTick ? outerR - 12 : outerR - 6;
+            var outerR     = mRadius - 2;
+            var innerR     = isHourTick ? outerR - (mRadius / 15) : outerR - (mRadius / 30);
 
-            var x1 = CENTER_X + (outerR * sinA).toNumber();
-            var y1 = CENTER_Y - (outerR * cosA).toNumber();
-            var x2 = CENTER_X + (innerR * sinA).toNumber();
-            var y2 = CENTER_Y - (innerR * cosA).toNumber();
+            var x1 = mCx + (outerR * sinA).toNumber();
+            var y1 = mCy - (outerR * cosA).toNumber();
+            var x2 = mCx + (innerR * sinA).toNumber();
+            var y2 = mCy - (innerR * cosA).toNumber();
 
             dc.drawLine(x1, y1, x2, y2);
         }
@@ -281,14 +283,11 @@ class BedtimeFaceView extends WatchUi.WatchFace {
         // Minute hand angle: each minute = 6°
         var minuteAngle = minute * 6.0f;
 
-        // Draw hour hand (shorter, wider)
-        drawHand(dc, hourAngle, HOUR_HAND_LEN, HAND_WIDTH + 2, Graphics.COLOR_WHITE);
-        // Draw minute hand (longer, narrower)
-        drawHand(dc, minuteAngle, MINUTE_HAND_LEN, HAND_WIDTH, Graphics.COLOR_WHITE);
+        drawHand(dc, hourAngle, mHourLen, mHandWidth + 2, Graphics.COLOR_WHITE);
+        // drawHand(dc, minuteAngle, mMinuteLen, mHandWidth, Graphics.COLOR_WHITE);
 
-        // Center dot over the hand pivot
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.fillCircle(CENTER_X, CENTER_Y, 5);
+        dc.fillCircle(mCx, mCy, 5);
     }
 
     // Draws a single hand as a filled rectangle rotated to the given angle.
@@ -299,14 +298,12 @@ class BedtimeFaceView extends WatchUi.WatchFace {
         var sinA     = Math.sin(angleRad);
         var cosA     = Math.cos(angleRad);
 
-        // Tip of the hand
-        var tipX = CENTER_X + (length * sinA).toNumber();
-        var tipY = CENTER_Y - (length * cosA).toNumber();
+        var tipX = mCx + (length * sinA).toNumber();
+        var tipY = mCy - (length * cosA).toNumber();
 
-        // Small back-stub behind the center (cosmetic)
-        var stubLen = 15;
-        var stubX   = CENTER_X - (stubLen * sinA).toNumber();
-        var stubY   = CENTER_Y + (stubLen * cosA).toNumber();
+        var stubLen = mRadius / 12;
+        var stubX   = mCx - (stubLen * sinA).toNumber();
+        var stubY   = mCy + (stubLen * cosA).toNumber();
 
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         dc.setPenWidth(width);
@@ -315,42 +312,67 @@ class BedtimeFaceView extends WatchUi.WatchFace {
     }
 
     // -------------------------------------------------------------------------
-    // Text elements
+    // Secondary indicators (low visual weight — peripheral, small, dim)
     // -------------------------------------------------------------------------
 
+    // Date: "23 Jun" at the 3 o'clock position, clear of the hands' sweep.
+    // FONT_XTINY keeps it small; 0x555555 keeps it dim.
+    private function drawDate(dc as Graphics.Dc, info as Gregorian.Info) as Void {
+        var monthName = MONTH_NAMES[info.month - 1];
+        var dateStr   = info.day.toString() + " " + monthName;
+
+        // 3 o'clock: x = cx + 55% radius, y = cy (vertically centered)
+        var x = mCx + (mRadius * 55) / 100;
+        dc.setColor(0x555555, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(x, mCy, Graphics.FONT_XTINY, dateStr, Graphics.TEXT_JUSTIFY_CENTER);
+    }
+
+    // Battery: thin arc along the outer bezel, top of dial (spanning ±battery/2 degrees).
+    // Full = 180° arc centered on 12; empty = 0°. Drawn just inside the tick ring.
+    // Color shifts from dim green → dim red as charge drops below 20%.
+    private function drawBattery(dc as Graphics.Dc, batteryPct as Float) as Void {
+        // Arc spans up to 180° total centered on 12 o'clock (±90° from top).
+        // At 100% → 180° sweep; at 0% → 0° sweep.
+        var sweepDeg = (batteryPct * 1.8f).toNumber(); // 100% → 180°
+        if (sweepDeg <= 0) { return; }
+
+        // Arc occupies 2px wide just inside the outermost tick ring
+        var arcR = mRadius - 1;
+
+        var color = batteryPct < 20.0f ? 0x993333 : 0x336633;
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+
+        // CW-from-12: arc starts at (360 - sweep/2) and ends at (sweep/2),
+        // i.e. centered on 12 o'clock.
+        var halfSweep  = sweepDeg / 2;
+        var startAngle = (360 - halfSweep).toFloat();
+        var endAngle   = halfSweep.toFloat();
+
+        // Convert to Garmin DC convention: dcAngle = 90 - cwAngle (mod 360)
+        var dcStart = ((90 - startAngle.toNumber() + 360) % 360);
+        var dcEnd   = ((90 - endAngle.toNumber()   + 360) % 360);
+
+        var i = 0;
+        while (i < 5) {
+            dc.drawArc(mCx, mCy, arcR - i, Graphics.ARC_CLOCKWISE, dcStart, dcEnd);
+            i++;
+        }
+    }
+
+    // Digital time: small, near 12 o'clock, just inside the battery arc.
+    // Low contrast — reference only, not competing with the hand.
     private function drawDigitalTime(dc as Graphics.Dc, clockTime as System.ClockTime) as Void {
         var hour   = clockTime.hour;
         var minute = clockTime.min;
 
-        // Format as 12h with AM/PM; no leading zero on hour
-        var isPm   = (hour >= 12);
         var h12    = hour % 12;
         if (h12 == 0) { h12 = 12; }
-        var suffix = isPm ? "pm" : "am";
-        var minStr = minute < 10 ? ("0" + minute.toString()) : minute.toString();
-        var timeStr = h12.toString() + ":" + minStr + suffix;
+        var minStr  = minute < 10 ? ("0" + minute.toString()) : minute.toString();
+        var timeStr = h12.toString() + ":" + minStr;
 
-        // Position: lower-right quadrant, below center
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(CENTER_X + 45, CENTER_Y + 30, Graphics.FONT_SMALL, timeStr, Graphics.TEXT_JUSTIFY_CENTER);
-    }
-
-    private function drawDate(dc as Graphics.Dc, info as Gregorian.Info) as Void {
-        // Format: "Tue 23 Jun" — day-of-week index is 1-based (1=Sun) in Gregorian.Info
-        var dayName   = DAY_NAMES[(info.day_of_week - 1) % 7];
-        var monthName = MONTH_NAMES[info.month - 1];
-        var dateStr   = dayName + " " + info.day.toString() + " " + monthName;
-
-        // Position: bottom of the dial
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(CENTER_X, CENTER_Y + 65, Graphics.FONT_SMALL, dateStr, Graphics.TEXT_JUSTIFY_CENTER);
-    }
-
-    private function drawBattery(dc as Graphics.Dc, batteryPct as Float) as Void {
-        var battStr = batteryPct.toNumber().toString() + "%";
-
-        // Position: top of the dial, above center
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(CENTER_X, CENTER_Y - 80, Graphics.FONT_SMALL, battStr, Graphics.TEXT_JUSTIFY_CENTER);
+        // Just below 12 o'clock, inside the battery arc
+        var y = mCy - (mRadius * 62) / 100;
+        dc.setColor(0x555555, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(mCx, y, Graphics.FONT_LARGE, timeStr, Graphics.TEXT_JUSTIFY_CENTER);
     }
 }

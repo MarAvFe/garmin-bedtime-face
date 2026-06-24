@@ -1,37 +1,31 @@
 <?xml version="1.0"?>
-<!--
-  Settings defines the UI shown in the Garmin Connect mobile app settings page.
-  Each <setting> maps to a property defined in properties.xml.
-  The "number" configurator gives the user a numeric input field.
-  Values here are minutes-since-midnight (0–1439).
--->
 <settings>
-    <group name="Bedtime Routine (PM)">
-        <setting propertyKey="PmGreenStart" title="PM Green start (min)">
-            <settingConfig type="numeric" minVal="0" maxVal="1439"/>
+    <group id="PmGroup" title="Bedtime Routine (PM)">
+        <setting propertyKey="@Properties.PmGreenStart" title="PM Green start (min)">
+            <settingConfig type="numeric"/>
         </setting>
-        <setting propertyKey="PmYellowStart" title="PM Yellow start (min)">
-            <settingConfig type="numeric" minVal="0" maxVal="1439"/>
+        <setting propertyKey="@Properties.PmYellowStart" title="PM Yellow start (min)">
+            <settingConfig type="numeric"/>
         </setting>
-        <setting propertyKey="PmRedStart" title="PM Red start (min)">
-            <settingConfig type="numeric" minVal="0" maxVal="1439"/>
+        <setting propertyKey="@Properties.PmRedStart" title="PM Red start (min)">
+            <settingConfig type="numeric"/>
         </setting>
-        <setting propertyKey="PmRedEnd" title="PM Red end (min)">
-            <settingConfig type="numeric" minVal="0" maxVal="1439"/>
+        <setting propertyKey="@Properties.PmRedEnd" title="PM Red end (min)">
+            <settingConfig type="numeric"/>
         </setting>
     </group>
-    <group name="Wake-up Routine (AM)">
-        <setting propertyKey="AmGreenStart" title="AM Green start (min)">
-            <settingConfig type="numeric" minVal="0" maxVal="1439"/>
+    <group id="AmGroup" title="Wake-up Routine (AM)">
+        <setting propertyKey="@Properties.AmGreenStart" title="AM Green start (min)">
+            <settingConfig type="numeric"/>
         </setting>
-        <setting propertyKey="AmYellowStart" title="AM Yellow start (min)">
-            <settingConfig type="numeric" minVal="0" maxVal="1439"/>
+        <setting propertyKey="@Properties.AmYellowStart" title="AM Yellow start (min)">
+            <settingConfig type="numeric"/>
         </setting>
-        <setting propertyKey="AmRedStart" title="AM Red start (min)">
-            <settingConfig type="numeric" minVal="0" maxVal="1439"/>
+        <setting propertyKey="@Properties.AmRedStart" title="AM Red start (min)">
+            <settingConfig type="numeric"/>
         </setting>
-        <setting propertyKey="AmRedEnd" title="AM Red end (min)">
-            <settingConfig type="numeric" minVal="0" maxVal="1439"/>
+        <setting propertyKey="@Properties.AmRedEnd" title="AM Red end (min)">
+            <settingConfig type="numeric"/>
         </setting>
     </group>
 </settings>

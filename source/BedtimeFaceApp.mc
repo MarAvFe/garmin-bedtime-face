@@ -14,8 +14,8 @@ class BedtimeFaceApp extends Application.AppBase {
 
     // Called once when the watch face is loaded. Return the initial view.
     // WatchFace views don't use a delegate — the view handles all rendering.
-    function getInitialView() as Array<WatchUi.Views or WatchUi.InputDelegates>? {
-        return [ new BedtimeFaceView() ] as Array<WatchUi.Views or WatchUi.InputDelegates>;
+    function getInitialView() {
+        return [ new BedtimeFaceView() ];
     }
 
     function onStart(state as Dictionary?) as Void {

@@ -2,6 +2,8 @@
 
 Garmin watch face (Forerunner 955) with color-coded analog sectors marking bedtime and wake-up routine urgency for a young child.
 
+<img width="388" height="540" alt="image" src="https://github.com/user-attachments/assets/18649b1d-62b4-41f0-8a7b-6f4afab8a3dc" />
+
 ---
 
 ## What it does

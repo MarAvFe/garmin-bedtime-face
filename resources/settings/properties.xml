@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!--
+  Properties are the Connect IQ mechanism for persistent, user-editable settings.
+  Values are stored on-device and survive app restarts. They are editable via
+  the Garmin Connect mobile app (IQ app settings page) — on-device editing of
+  time values is impractical because Connect IQ's on-device settings UI only
+  supports a limited list/toggle widget set, not a time-picker. The mobile app
+  is the correct path for entering 8 time boundary values.
+
+  All time values are stored as minutes-since-midnight (0–1439).
+  Example: 17:00 = 1020, 19:30 = 1170, 20:30 = 1230.
+-->
+<properties>
+    <!-- PM (bedtime) routine boundaries, minutes since midnight -->
+    <property id="PmGreenStart" type="number">1020</property>   <!-- 17:00 default -->
+    <property id="PmYellowStart" type="number">1080</property>  <!-- 18:00 default -->
+    <property id="PmRedStart" type="number">1170</property>     <!-- 19:30 default -->
+    <property id="PmRedEnd" type="number">1230</property>       <!-- 20:30 default -->
+
+    <!-- AM (wake-up) routine boundaries, minutes since midnight -->
+    <property id="AmGreenStart" type="number">300</property>    <!-- 05:00 default -->
+    <property id="AmYellowStart" type="number">390</property>   <!-- 06:30 default -->
+    <property id="AmRedStart" type="number">435</property>      <!-- 07:15 default -->
+    <property id="AmRedEnd" type="number">465</property>        <!-- 07:45 default -->
+</properties>

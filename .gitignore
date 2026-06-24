@@ -1,0 +1,26 @@
+# Build output
+build/
+
+# SDK Manager cache (if you ever run it from the project dir)
+*.prg
+*.iq
+
+# Developer signing key — never commit this
+*.pem
+*.der
+*.key
+
+# VS Code / editor
+.vscode/
+*.code-workspace
+
+# Eclipse ConnectIQ plugin project files
+.project
+.classpath
+.settings/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db

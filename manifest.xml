@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
+    <iq:application entry="BedtimeFaceApp" id="a3f4b2c1-d5e6-7890-abcd-ef1234567890" minApiLevel="3.2.0" name="@Strings.AppName" type="watchface" version="1.0.0">
+        <iq:products>
+            <!-- Forerunner 955: Connect IQ API 3.4 (API level 3.4.0) -->
+            <iq:product id="fr955"/>
+        </iq:products>
+        <iq:permissions>
+            <!-- Required for reading system time and battery info -->
+            <iq:uses-permission id="UserProfile"/>
+        </iq:permissions>
+        <iq:languages>
+            <iq:language>eng</iq:language>
+        </iq:languages>
+    </iq:application>
+</iq:manifest>

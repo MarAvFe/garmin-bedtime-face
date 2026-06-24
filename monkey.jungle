@@ -1,0 +1,14 @@
+# Connect IQ project build configuration.
+# The jungle file tells the SDK how to assemble sources and resources.
+
+project.manifest = manifest.xml
+
+# Source files
+base.sourcePath = source
+
+# Resources (drawables, strings, settings, etc.)
+base.resourcePath = resources
+
+# fr955 inherits everything from base; no device-specific overrides needed for MVP
+fr955.sourcePath = $(base.sourcePath)
+fr955.resourcePath = $(base.resourcePath)
